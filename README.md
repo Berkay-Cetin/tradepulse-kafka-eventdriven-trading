@@ -9,28 +9,28 @@ A production-grade, cloud-native trading platform built with **.NET 8** and **Ap
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         TRADEPULSE                                  │
-│                                                                     │
-│  ┌──────────────────────┐                                           │
-│  │   MarketSimulator    │  Geometric Brownian Motion price engine   │
-│  │   (.NET 8 Worker)    │─────────────────────────────────┐        │
-│  └──────────────────────┘   market.price-feed (Kafka)     │        │
-│                                                            ▼        │
-│  ┌──────────────────────┐                    ┌──────────────────┐  │
-│  │    OrderService      │  trade.orders      │  PricingService  │  │
-│  │  (.NET 8 Web API)    │───────────────────►│  (.NET 8 Worker) │  │
-│  │  CQRS + MediatR      │◄── REST/Swagger ───│  Kafka Consumer  │  │
-│  └──────────────────────┘                    └────────┬─────────┘  │
-│           │                                           │             │
-│           │                      trade.executions (Kafka)          │
-│           │                  ┌────────────────────────┤            │
-│           │                  │                        │            │
-│           ▼                  ▼                        ▼            │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐ │
-│  │   PostgreSQL     │  │ EventStoreService│  │  Redis Cache     │ │
-│  │   Write DB       │  │  Event Sourcing  │  │  Read Model      │ │
-│  │   CQRS Write     │  │  Append-only log │  │  Price Feed      │ │
-│  └──────────────────┘  └──────────────────┘  └──────────────────┘ │
+│                         TRADEPULSE                                  
+│                                                                     
+│  ┌──────────────────────┐                                           
+│  │   MarketSimulator    │  Geometric Brownian Motion price engine   
+│  │   (.NET 8 Worker)    │─────────────────────────────────┐        
+│  └──────────────────────┘   market.price-feed (Kafka)     │        
+│                                                            ▼        
+│  ┌──────────────────────┐                    ┌──────────────────┐  
+│  │    OrderService      │  trade.orders      │  PricingService  │  
+│  │  (.NET 8 Web API)    │───────────────────►│  (.NET 8 Worker) │  
+│  │  CQRS + MediatR      │◄── REST/Swagger ───│  Kafka Consumer  │  
+│  └──────────────────────┘                    └────────┬─────────┘  
+│           │                                           │             
+│           │                      trade.executions (Kafka)          
+│           │                  ┌────────────────────────┤            
+│           │                  │                        │            
+│           ▼                  ▼                        ▼            
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐ 
+│  │   PostgreSQL     │  │ EventStoreService│  │  Redis Cache     │ 
+│  │   Write DB       │  │  Event Sourcing  │  │  Read Model      │ 
+│  │   CQRS Write     │  │  Append-only log │  │  Price Feed      │ 
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘ 
 └─────────────────────────────────────────────────────────────────────┘
 
 Kubernetes (Minikube)
