@@ -1,0 +1,13 @@
+kafka:
+  bootstrapServers: "YOUR_HOST_IP:9092"
+
+postgres:
+  host: YOUR_HOST_IP
+  port: 5432
+  database: tradepulse
+  username: tradepulse
+  password: YOUR_PASSWORD
+
+redis:
+  host: YOUR_HOST_IP
+  port: 6379

@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  labels:
+    app: order-service
+spec:
+  replicas: {{ .Values.orderService.replicas }}
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      containers:
+        - name: order-service
+          image: {{ .Values.orderService.image }}
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: tradepulse-config
+          env:
+            - name: KAFKA__CONSUMERGROUP
+              value: "order-group"
+            - name: KAFKA__TOPICS__ORDERS
+              value: "trade.orders"
+            - name: KAFKA__TOPICS__EXECUTIONS
+              value: "trade.executions"
+            - name: KAFKA__TOPICS__DEADLETTER
+              value: "trade.dead-letter"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+spec:
+  selector:
+    app: order-service
+  type: NodePort       # dışarıdan erişim için
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080

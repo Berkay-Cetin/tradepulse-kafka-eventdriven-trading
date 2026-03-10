@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: market-simulator
+  labels:
+    app: market-simulator
+spec:
+  replicas: {{ .Values.marketSimulator.replicas }}
+  selector:
+    matchLabels:
+      app: market-simulator
+  template:
+    metadata:
+      labels:
+        app: market-simulator
+    spec:
+      containers:
+        - name: market-simulator
+          image: {{ .Values.marketSimulator.image }}
+          imagePullPolicy: Never        # Minikube local image
+          envFrom:
+            - configMapRef:
+                name: tradepulse-config
+          env:
+            - name: KAFKA__TOPIC
+              value: "market.price-feed"
+            - name: KAFKA__INTERVALMS
+              value: "{{ .Values.marketSimulator.intervalMs }}"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
