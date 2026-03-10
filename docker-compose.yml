@@ -1,0 +1,198 @@
+version: '3.9'
+
+networks:
+  tradepulse-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  kafka-data:
+
+services:
+
+  # ─────────────────────────────────────────
+  # ZOOKEEPER — Kafka cluster coordination
+  # ─────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: tradepulse-zookeeper
+    restart: unless-stopped
+    networks:
+      - tradepulse-net
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # KAFKA BROKER
+  # ─────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: tradepulse-kafka
+    restart: unless-stopped
+    networks:
+      - tradepulse-net
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"       # uygulama erişimi (host'tan)
+      - "29092:29092"     # container içi erişim
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+      # İKİ listener tanımlıyoruz:
+      # PLAINTEXT      → container'lar arası (kafka:29092)
+      # PLAINTEXT_HOST → host makineden erişim (localhost:9092)
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"   # topic'leri manuel yönetelim
+      KAFKA_LOG_RETENTION_HOURS: 168             # 7 gün log tut
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_NUM_PARTITIONS: 3                    # default partition sayısı
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  # ─────────────────────────────────────────
+  # KAFKA INIT — Topic'leri oluştur
+  # ─────────────────────────────────────────
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: tradepulse-kafka-init
+    networks:
+      - tradepulse-net
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "
+      echo 'Kafka topic oluşturuluyor...'
+
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
+        --topic market.price-feed \
+        --partitions 6 \
+        --replication-factor 1 \
+        --config retention.ms=3600000
+
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
+        --topic trade.orders \
+        --partitions 3 \
+        --replication-factor 1
+
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
+        --topic trade.executions \
+        --partitions 3 \
+        --replication-factor 1
+
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
+        --topic trade.dead-letter \
+        --partitions 1 \
+        --replication-factor 1
+
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
+        --topic portfolio.snapshots \
+        --partitions 3 \
+        --replication-factor 1
+
+      echo 'Tüm topic ler oluşturuldu:'
+      kafka-topics --bootstrap-server kafka:29092 --list
+      "
+
+  # ─────────────────────────────────────────
+  # KAFKA UI — Görsel yönetim paneli
+  # ─────────────────────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: tradepulse-kafka-ui
+    restart: unless-stopped
+    networks:
+      - tradepulse-net
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: tradepulse-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
+  # ─────────────────────────────────────────
+  # POSTGRESQL — Event Store + Write DB
+  # ─────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: tradepulse-postgres
+    restart: unless-stopped
+    networks:
+      - tradepulse-net
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: tradepulse
+      POSTGRES_PASSWORD: tradepulse123
+      POSTGRES_DB: tradepulse
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tradepulse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # REDIS — Read Model Cache
+  # ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: tradepulse-redis
+    restart: unless-stopped
+    networks:
+      - tradepulse-net
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # REDIS COMMANDER — Görsel Redis UI
+  # ─────────────────────────────────────────
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: tradepulse-redis-ui
+    restart: unless-stopped
+    networks:
+      - tradepulse-net
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      REDIS_HOSTS: local:redis:6379
