@@ -1,4 +1,13 @@
 # TradePulse 📈
+
+![.NET](https://img.shields.io/badge/.NET-8-512BD4?style=flat&logo=dotnet)
+![Apache Kafka](https://img.shields.io/badge/Apache_Kafka-7.6-231F20?style=flat&logo=apachekafka)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat&logo=postgresql)
+![Redis](https://img.shields.io/badge/Redis-7-FF4438?style=flat&logo=redis)
+![Docker](https://img.shields.io/badge/Docker-28-2496ED?style=flat&logo=docker)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-Helm-326CE5?style=flat&logo=kubernetes)
+![MediatR](https://img.shields.io/badge/MediatR-CQRS-512BD4?style=flat&logo=dotnet)
+
 ### Real-Time Event-Driven Trading Platform
 
 A production-grade, cloud-native trading platform built with **.NET 8** and **Apache Kafka**, demonstrating real-world microservices architecture patterns including **CQRS**, **Event Sourcing**, and **Kubernetes** orchestration.
